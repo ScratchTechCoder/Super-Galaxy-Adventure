@@ -107,6 +107,37 @@
             padding: 6px 12px;
         }
 
+        #soundToggle {
+            position: absolute;
+            top: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #00ff00;
+            color: #000;
+            border: 2px solid #00ff00;
+            padding: 8px 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            z-index: 15;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        #soundToggle:hover {
+            background: #00cc00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        #soundToggle:active {
+            transform: translateX(-50%) scale(0.95);
+        }
+
+        #gameContainer.windowed #soundToggle {
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+
         #gameOver {
             position: absolute;
             top: 50%;
@@ -191,6 +222,7 @@
     <div id="gameContainer">
         <canvas id="canvas"></canvas>
         <button id="fullscreenBtn">⛶ Window Mode</button>
+        <button id="soundToggle">🔊 Sound ON</button>
         <div id="score">Score: 0</div>
         <div id="lives">Lives: 3</div>
         <div id="gameOver">
@@ -199,11 +231,97 @@
             <button onclick="location.reload()">Play Again</button>
         </div>
         <div class="controls">
-            <p>← → Arrow Keys to Move | SPACE to Shoot | F to Toggle Fullscreen</p>
+            <p>← → Arrow Keys to Move | SPACE to Shoot | F to Toggle Fullscreen | M for Sound</p>
         </div>
     </div>
 
     <script>
+        // Audio Context for sound generation
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = true;
+
+        // Sound effect functions using Web Audio API
+        function playSound(frequency, duration, type = 'sine', volume = 0.3) {
+            if (!soundEnabled) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.type = type;
+            oscillator.frequency.value = frequency;
+            
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        // Shoot sound effect (laser)
+        function playShotSound() {
+            playSound(800, 0.1, 'square', 0.2);
+            playSound(600, 0.08, 'square', 0.1);
+        }
+
+        // Enemy death sound
+        function playEnemyDeathSound() {
+            playSound(400, 0.15, 'square', 0.25);
+            playSound(200, 0.2, 'square', 0.15);
+        }
+
+        // Level complete sound
+        function playLevelCompleteSound() {
+            playSound(523, 0.15, 'sine', 0.3);
+            setTimeout(() => playSound(659, 0.15, 'sine', 0.3), 150);
+            setTimeout(() => playSound(784, 0.3, 'sine', 0.3), 300);
+        }
+
+        // Background music notes
+        let musicPlaying = false;
+
+        function playBackgroundMusic() {
+            if (!soundEnabled || musicPlaying) return;
+            musicPlaying = true;
+
+            const notes = [
+                { freq: 220, dur: 0.3 },   // A3
+                { freq: 220, dur: 0.3 },
+                { freq: 330, dur: 0.3 },   // E4
+                { freq: 330, dur: 0.3 },
+                { freq: 440, dur: 0.3 },   // A4
+                { freq: 440, dur: 0.3 },
+                { freq: 330, dur: 0.6 },   // E4
+                { freq: 220, dur: 0.3 },   // A3
+                { freq: 220, dur: 0.3 },
+                { freq: 330, dur: 0.3 },   // E4
+                { freq: 330, dur: 0.3 },
+                { freq: 494, dur: 0.3 },   // B4
+                { freq: 494, dur: 0.3 },
+                { freq: 330, dur: 0.6 },   // E4
+            ];
+
+            let currentTime = 0;
+            notes.forEach((note, index) => {
+                setTimeout(() => {
+                    playSound(note.freq, note.dur, 'sine', 0.1);
+                }, currentTime * 1000);
+                currentTime += note.dur;
+            });
+
+            // Loop music
+            setTimeout(playBackgroundMusic, currentTime * 1000);
+        }
+
+        // Sound toggle
+        document.getElementById('soundToggle').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            document.getElementById('soundToggle').textContent = soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+            if (soundEnabled) playBackgroundMusic();
+        });
+
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d', { alpha: false });
         const scoreElement = document.getElementById('score');
@@ -513,12 +631,17 @@
                 e.preventDefault();
                 toggleFullscreen();
             }
+            if (e.key.toLowerCase() === 'm') {
+                e.preventDefault();
+                document.getElementById('soundToggle').click();
+            }
         });
         window.addEventListener('keyup', (e) => {
             keys[e.key] = false;
         });
 
         function shoot() {
+            playShotSound();
             bulletPool[bulletCount] = createBullet(player.x + player.width / 2 - 4, player.y - 16);
             bulletCount++;
             if (bulletCount >= bulletPool.length) bulletCount = bulletPool.length - 1;
@@ -568,6 +691,7 @@
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     if (checkCollision(bullet, enemies[j])) {
                         score += 100;
+                        playEnemyDeathSound();
                         // Move to back and decrement
                         bulletPool[i] = bulletPool[bulletCount - 1];
                         bulletPool[bulletCount - 1] = bullet;
@@ -640,6 +764,7 @@
             // Check if all enemies destroyed
             if (enemies.length === 0 && level < 10) {
                 level++;
+                playLevelCompleteSound();
                 spawnEnemies();
             }
 
@@ -699,6 +824,7 @@
 
         // Start game
         spawnEnemies();
+        playBackgroundMusic();
         gameLoop();
     </script>
 </body>
