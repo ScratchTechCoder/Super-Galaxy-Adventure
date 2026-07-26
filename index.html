@@ -27,10 +27,10 @@
 
         #gameContainer {
             position: relative;
-            width: 800px;
-            height: 600px;
+            width: 100vw;
+            height: 100vh;
             background: linear-gradient(135deg, #0a0e27, #1a1a3e);
-            border: 3px solid #00ff00;
+            border: none;
             overflow: hidden;
             box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
             image-rendering: pixelated;
@@ -38,10 +38,10 @@
             transition: all 0.3s ease;
         }
 
-        #gameContainer.fullscreen {
-            width: 100vw;
-            height: 100vh;
-            border: none;
+        #gameContainer.windowed {
+            width: 800px;
+            height: 600px;
+            border: 3px solid #00ff00;
         }
 
         #canvas {
@@ -102,9 +102,9 @@
             transform: translateX(-50%) scale(0.95);
         }
 
-        #gameContainer.fullscreen #fullscreenBtn {
-            font-size: 16px;
-            padding: 12px 24px;
+        #gameContainer.windowed #fullscreenBtn {
+            font-size: 12px;
+            padding: 6px 12px;
         }
 
         #gameOver {
@@ -121,35 +121,35 @@
             border-radius: 10px;
         }
 
-        #gameContainer.fullscreen #gameOver {
-            padding: 60px;
+        #gameContainer.windowed #gameOver {
+            padding: 40px;
         }
 
         #gameOver h1 {
             color: #ff0000;
-            font-size: 48px;
+            font-size: 64px;
             margin-bottom: 20px;
             text-shadow: 0 0 20px #ff0000;
         }
 
-        #gameContainer.fullscreen #gameOver h1 {
-            font-size: 64px;
+        #gameContainer.windowed #gameOver h1 {
+            font-size: 48px;
         }
 
         #gameOver p {
             color: #00ff00;
-            font-size: 24px;
+            font-size: 32px;
             margin: 10px 0;
         }
 
-        #gameContainer.fullscreen #gameOver p {
-            font-size: 32px;
+        #gameContainer.windowed #gameOver p {
+            font-size: 24px;
         }
 
         #gameOver button {
             margin-top: 20px;
-            padding: 12px 30px;
-            font-size: 18px;
+            padding: 16px 40px;
+            font-size: 24px;
             background: #00ff00;
             color: #000;
             border: none;
@@ -159,9 +159,9 @@
             transition: all 0.3s;
         }
 
-        #gameContainer.fullscreen #gameOver button {
-            padding: 16px 40px;
-            font-size: 24px;
+        #gameContainer.windowed #gameOver button {
+            padding: 12px 30px;
+            font-size: 18px;
         }
 
         #gameOver button:hover {
@@ -175,22 +175,22 @@
             left: 50%;
             transform: translateX(-50%);
             color: #00ff00;
-            font-size: 14px;
+            font-size: 18px;
             text-align: center;
             z-index: 10;
             pointer-events: none;
         }
 
-        #gameContainer.fullscreen .controls {
-            font-size: 18px;
-            bottom: 20px;
+        #gameContainer.windowed .controls {
+            font-size: 14px;
+            bottom: 10px;
         }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="canvas"></canvas>
-        <button id="fullscreenBtn">⛶ Fullscreen</button>
+        <button id="fullscreenBtn">⛶ Window Mode</button>
         <div id="score">Score: 0</div>
         <div id="lives">Lives: 3</div>
         <div id="gameOver">
@@ -199,7 +199,7 @@
             <button onclick="location.reload()">Play Again</button>
         </div>
         <div class="controls">
-            <p>← → Arrow Keys to Move | SPACE to Shoot | F for Fullscreen</p>
+            <p>← → Arrow Keys to Move | SPACE to Shoot | F to Toggle Fullscreen</p>
         </div>
     </div>
 
@@ -211,9 +211,12 @@
         const gameContainer = document.getElementById('gameContainer');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         
-        // Set canvas size
-        canvas.width = 800;
-        canvas.height = 600;
+        // Start in fullscreen by default
+        let isFullscreen = true;
+        
+        // Set canvas size to fullscreen
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
         // Pre-calculate background
         const backgroundCanvas = document.createElement('canvas');
@@ -221,48 +224,23 @@
         backgroundCanvas.height = canvas.height;
         const bgCtx = backgroundCanvas.getContext('2d');
         
-        const gradient = bgCtx.createLinearGradient(0, 0, 0, backgroundCanvas.height);
-        gradient.addColorStop(0, '#0a0e27');
-        gradient.addColorStop(1, '#1a1a3e');
-        bgCtx.fillStyle = gradient;
-        bgCtx.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
-        
-        // Draw stars
-        bgCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        for (let i = 0; i < 50; i++) {
-            const x = (i * 137) % backgroundCanvas.width;
-            const y = (i * 71) % backgroundCanvas.height;
-            bgCtx.fillRect(x, y, 1, 1);
-        }
-
-        // Fullscreen functionality
-        let isFullscreen = false;
-
-        function toggleFullscreen() {
-            isFullscreen = !isFullscreen;
+        function drawBackground() {
+            const gradient = bgCtx.createLinearGradient(0, 0, 0, backgroundCanvas.height);
+            gradient.addColorStop(0, '#0a0e27');
+            gradient.addColorStop(1, '#1a1a3e');
+            bgCtx.fillStyle = gradient;
+            bgCtx.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
             
-            if (isFullscreen) {
-                gameContainer.classList.add('fullscreen');
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                fullscreenBtn.textContent = '⛶ Exit Fullscreen';
-            } else {
-                gameContainer.classList.remove('fullscreen');
-                canvas.width = 800;
-                canvas.height = 600;
-                fullscreenBtn.textContent = '⛶ Fullscreen';
+            // Draw stars
+            bgCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            for (let i = 0; i < 100; i++) {
+                const x = (i * 137) % backgroundCanvas.width;
+                const y = (i * 71) % backgroundCanvas.height;
+                bgCtx.fillRect(x, y, 1, 1);
             }
         }
-
-        fullscreenBtn.addEventListener('click', toggleFullscreen);
-
-        // Handle window resize in fullscreen
-        window.addEventListener('resize', () => {
-            if (isFullscreen) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            }
-        });
+        
+        drawBackground();
 
         // Game variables
         let score = 0;
@@ -382,6 +360,46 @@
                    rect1.y < rect2.y + rect2.height &&
                    rect1.y + rect1.height > rect2.y;
         }
+
+        // Toggle fullscreen/windowed
+        function toggleFullscreen() {
+            isFullscreen = !isFullscreen;
+            
+            if (isFullscreen) {
+                gameContainer.classList.remove('windowed');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                fullscreenBtn.textContent = '⛶ Window Mode';
+                
+                // Redraw background for new size
+                backgroundCanvas.width = canvas.width;
+                backgroundCanvas.height = canvas.height;
+                drawBackground();
+            } else {
+                gameContainer.classList.add('windowed');
+                canvas.width = 800;
+                canvas.height = 600;
+                fullscreenBtn.textContent = '⛶ Fullscreen';
+                
+                // Redraw background for new size
+                backgroundCanvas.width = 800;
+                backgroundCanvas.height = 600;
+                drawBackground();
+            }
+        }
+
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+        // Handle window resize in fullscreen
+        window.addEventListener('resize', () => {
+            if (isFullscreen) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                backgroundCanvas.width = canvas.width;
+                backgroundCanvas.height = canvas.height;
+                drawBackground();
+            }
+        });
 
         // Keyboard input
         const keys = {};
@@ -538,21 +556,8 @@
 
         // Draw game
         function draw() {
-            // Clear and draw background
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw scaled background for fullscreen
-            if (isFullscreen) {
-                const scaleX = canvas.width / backgroundCanvas.width;
-                const scaleY = canvas.height / backgroundCanvas.height;
-                ctx.save();
-                ctx.scale(scaleX, scaleY);
-                ctx.drawImage(backgroundCanvas, 0, 0);
-                ctx.restore();
-            } else {
-                ctx.drawImage(backgroundCanvas, 0, 0);
-            }
+            // Draw background
+            ctx.drawImage(backgroundCanvas, 0, 0);
 
             // Draw player
             player.draw(ctx);
