@@ -218,6 +218,112 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
+        // Create sprite canvases
+        const spriteCanvas = document.createElement('canvas');
+        spriteCanvas.width = 16;
+        spriteCanvas.height = 16;
+        const spriteCtx = spriteCanvas.getContext('2d');
+
+        // Draw player sprite (8-bit spaceship)
+        function drawPlayerSprite(canvas, ctx) {
+            canvas.width = 24;
+            canvas.height = 24;
+            ctx.fillStyle = '#00ff00';
+            // Cockpit
+            ctx.fillRect(10, 2, 4, 2);
+            // Body
+            ctx.fillRect(8, 4, 8, 8);
+            // Wings
+            ctx.fillRect(4, 8, 4, 4);
+            ctx.fillRect(16, 8, 4, 4);
+            // Thruster
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(10, 12, 4, 2);
+            ctx.fillRect(9, 14, 6, 2);
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(10, 14, 4, 2);
+        }
+
+        // Draw bullet sprite (8-bit laser)
+        function drawBulletSprite(canvas, ctx) {
+            canvas.width = 8;
+            canvas.height = 16;
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(3, 0, 2, 4);
+            ctx.fillStyle = '#ffff88';
+            ctx.fillRect(2, 4, 4, 8);
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(3, 12, 2, 4);
+        }
+
+        // Draw enemy sprite (8-bit alien)
+        function drawEnemySprite(canvas, ctx, type) {
+            canvas.width = 24;
+            canvas.height = 24;
+            
+            if (type === 'basic') {
+                ctx.fillStyle = '#ff00ff';
+                // Head
+                ctx.fillRect(6, 2, 12, 8);
+                // Eyes
+                ctx.fillStyle = '#00ffff';
+                ctx.fillRect(8, 4, 2, 2);
+                ctx.fillRect(14, 4, 2, 2);
+                // Body
+                ctx.fillStyle = '#ff00ff';
+                ctx.fillRect(4, 10, 16, 8);
+                // Limbs
+                ctx.fillRect(2, 16, 2, 6);
+                ctx.fillRect(20, 16, 2, 6);
+            } else {
+                // Strong enemy (bigger/more detailed)
+                ctx.fillStyle = '#ff6600';
+                // Head
+                ctx.fillRect(5, 1, 14, 10);
+                // Eyes
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(7, 3, 3, 3);
+                ctx.fillRect(14, 3, 3, 3);
+                // Mouth
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(8, 8, 8, 2);
+                // Body
+                ctx.fillStyle = '#ff6600';
+                ctx.fillRect(2, 11, 20, 10);
+                // Spikes
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(2, 11, 2, 2);
+                ctx.fillRect(20, 11, 2, 2);
+                ctx.fillRect(8, 11, 2, 2);
+                ctx.fillRect(14, 11, 2, 2);
+            }
+        }
+
+        // Draw enemy bullet sprite
+        function drawEnemyBulletSprite(canvas, ctx) {
+            canvas.width = 8;
+            canvas.height = 16;
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(2, 0, 4, 4);
+            ctx.fillStyle = '#ff8844';
+            ctx.fillRect(1, 4, 6, 8);
+            ctx.fillStyle = '#ffaa66';
+            ctx.fillRect(2, 12, 4, 4);
+        }
+
+        // Create sprite caches
+        const playerSpriteCanvas = document.createElement('canvas');
+        const bulletSpriteCanvas = document.createElement('canvas');
+        const enemyBasicSpriteCanvas = document.createElement('canvas');
+        const enemyStrongSpriteCanvas = document.createElement('canvas');
+        const enemyBulletSpriteCanvas = document.createElement('canvas');
+
+        drawPlayerSprite(playerSpriteCanvas, playerSpriteCanvas.getContext('2d'));
+        drawBulletSprite(bulletSpriteCanvas, bulletSpriteCanvas.getContext('2d'));
+        drawEnemySprite(enemyBasicSpriteCanvas, enemyBasicSpriteCanvas.getContext('2d'), 'basic');
+        drawEnemySprite(enemyStrongSpriteCanvas, enemyStrongSpriteCanvas.getContext('2d'), 'strong');
+        drawEnemyBulletSprite(enemyBulletSpriteCanvas, enemyBulletSpriteCanvas.getContext('2d'));
+
         // Pre-calculate background
         const backgroundCanvas = document.createElement('canvas');
         backgroundCanvas.width = canvas.width;
@@ -253,10 +359,10 @@
 
         // Player
         const player = {
-            x: canvas.width / 2 - 20,
-            y: canvas.height - 50,
-            width: 40,
-            height: 40,
+            x: canvas.width / 2 - 12,
+            y: canvas.height - 60,
+            width: 24,
+            height: 24,
             speed: 6,
             dx: 0,
             update() {
@@ -265,13 +371,7 @@
                 if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
             },
             draw(ctx) {
-                ctx.fillStyle = '#00ff00';
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width / 2, this.y);
-                ctx.lineTo(this.x, this.y + this.height);
-                ctx.lineTo(this.x + this.width, this.y + this.height);
-                ctx.closePath();
-                ctx.fill();
+                ctx.drawImage(playerSpriteCanvas, this.x, this.y);
             }
         };
 
@@ -288,7 +388,7 @@
             if (bulletPoolIndex < bulletPool.length) {
                 const bullet = bulletPool[bulletPoolIndex++];
                 if (!bullet) {
-                    const b = { x, y, width: 5, height: 15, speed: 8 };
+                    const b = { x, y, width: 8, height: 16, speed: 8 };
                     bulletPool[bulletPoolIndex - 1] = b;
                     return b;
                 }
@@ -296,14 +396,14 @@
                 bullet.y = y;
                 return bullet;
             }
-            return { x, y, width: 5, height: 15, speed: 8 };
+            return { x, y, width: 8, height: 16, speed: 8 };
         };
 
         const createEnemyBullet = (x, y) => {
             if (enemyBulletPoolIndex < enemyBulletPool.length) {
                 const bullet = enemyBulletPool[enemyBulletPoolIndex++];
                 if (!bullet) {
-                    const b = { x, y, width: 5, height: 12, speed: 4.5 };
+                    const b = { x, y, width: 8, height: 16, speed: 4.5 };
                     enemyBulletPool[enemyBulletPoolIndex - 1] = b;
                     return b;
                 }
@@ -311,7 +411,7 @@
                 bullet.y = y;
                 return bullet;
             }
-            return { x, y, width: 5, height: 12, speed: 4.5 };
+            return { x, y, width: 8, height: 16, speed: 4.5 };
         };
 
         const createEnemy = (x, y, type) => {
@@ -320,8 +420,8 @@
                 if (!enemy) {
                     const e = {
                         x, y,
-                        width: 35,
-                        height: 35,
+                        width: 24,
+                        height: 24,
                         speed: 2 + level * 0.4,
                         type: type,
                         shootTimer: Math.random() * 100,
@@ -340,8 +440,8 @@
             }
             return {
                 x, y,
-                width: 35,
-                height: 35,
+                width: 24,
+                height: 24,
                 speed: 2 + level * 0.4,
                 type: type,
                 shootTimer: Math.random() * 100,
@@ -419,7 +519,7 @@
         });
 
         function shoot() {
-            bulletPool[bulletCount] = createBullet(player.x + player.width / 2 - 2.5, player.y);
+            bulletPool[bulletCount] = createBullet(player.x + player.width / 2 - 4, player.y - 16);
             bulletCount++;
             if (bulletCount >= bulletPool.length) bulletCount = bulletPool.length - 1;
         }
@@ -497,7 +597,7 @@
                 // Enemy shoots (reduced frequency)
                 if (enemy.shootTimer > 80 + Math.random() * 50) {
                     enemyBulletPool[enemyBulletCount] = createEnemyBullet(
-                        enemy.x + enemy.width / 2,
+                        enemy.x + enemy.width / 2 - 4,
                         enemy.y + enemy.height
                     );
                     enemyBulletCount++;
@@ -563,31 +663,22 @@
             player.draw(ctx);
 
             // Draw bullets (fixed array)
-            ctx.fillStyle = '#ffff00';
             for (let i = 0; i < bulletCount; i++) {
                 const b = bulletPool[i];
-                ctx.fillRect(b.x, b.y, b.width, b.height);
+                ctx.drawImage(bulletSpriteCanvas, b.x, b.y);
             }
 
             // Draw enemies
             for (let i = 0; i < enemies.length; i++) {
                 const enemy = enemies[i];
-                ctx.fillStyle = enemy.type === 'basic' ? '#ff00ff' : '#ff6600';
-                ctx.beginPath();
-                ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Eyes
-                ctx.fillStyle = '#000';
-                ctx.fillRect(enemy.x + 8, enemy.y + 8, 4, 4);
-                ctx.fillRect(enemy.x + 23, enemy.y + 8, 4, 4);
+                const sprite = enemy.type === 'basic' ? enemyBasicSpriteCanvas : enemyStrongSpriteCanvas;
+                ctx.drawImage(sprite, enemy.x, enemy.y);
             }
 
             // Draw enemy bullets (fixed array)
-            ctx.fillStyle = '#ff6600';
             for (let i = 0; i < enemyBulletCount; i++) {
                 const b = enemyBulletPool[i];
-                ctx.fillRect(b.x, b.y, b.width, b.height);
+                ctx.drawImage(enemyBulletSpriteCanvas, b.x, b.y);
             }
 
             // Draw level (batch update)
