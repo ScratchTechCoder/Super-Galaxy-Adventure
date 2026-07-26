@@ -145,6 +145,8 @@
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d', { alpha: false });
+        const scoreElement = document.getElementById('score');
+        const livesElement = document.getElementById('lives');
         
         // Set canvas size
         canvas.width = 800;
@@ -176,6 +178,8 @@
         let gameOver = false;
         let level = 1;
         let frameCount = 0;
+        let lastScoreUpdate = -1;
+        let lastLivesUpdate = -1;
 
         // Player
         const player = {
@@ -201,14 +205,23 @@
             }
         };
 
-        // Object pools for better performance
-        const bulletPool = [];
-        const enemyBulletPool = [];
-        const enemyPool = [];
+        // Pre-allocated arrays for bullets (fixed pool size)
+        const bulletPool = new Array(100);
+        const enemyBulletPool = new Array(200);
+        const enemyPool = new Array(50);
+        
+        let bulletPoolIndex = 0;
+        let enemyBulletPoolIndex = 0;
+        let enemyPoolIndex = 0;
 
         const createBullet = (x, y) => {
-            if (bulletPool.length > 0) {
-                const bullet = bulletPool.pop();
+            if (bulletPoolIndex < bulletPool.length) {
+                const bullet = bulletPool[bulletPoolIndex++];
+                if (!bullet) {
+                    const b = { x, y, width: 5, height: 15, speed: 8 };
+                    bulletPool[bulletPoolIndex - 1] = b;
+                    return b;
+                }
                 bullet.x = x;
                 bullet.y = y;
                 return bullet;
@@ -217,8 +230,13 @@
         };
 
         const createEnemyBullet = (x, y) => {
-            if (enemyBulletPool.length > 0) {
-                const bullet = enemyBulletPool.pop();
+            if (enemyBulletPoolIndex < enemyBulletPool.length) {
+                const bullet = enemyBulletPool[enemyBulletPoolIndex++];
+                if (!bullet) {
+                    const b = { x, y, width: 5, height: 12, speed: 4.5 };
+                    enemyBulletPool[enemyBulletPoolIndex - 1] = b;
+                    return b;
+                }
                 bullet.x = x;
                 bullet.y = y;
                 return bullet;
@@ -227,12 +245,27 @@
         };
 
         const createEnemy = (x, y, type) => {
-            if (enemyPool.length > 0) {
-                const enemy = enemyPool.pop();
+            if (enemyPoolIndex < enemyPool.length) {
+                const enemy = enemyPool[enemyPoolIndex++];
+                if (!enemy) {
+                    const e = {
+                        x, y,
+                        width: 35,
+                        height: 35,
+                        speed: 2 + level * 0.4,
+                        type: type,
+                        shootTimer: Math.random() * 100,
+                        dx: 1
+                    };
+                    enemyPool[enemyPoolIndex - 1] = e;
+                    return e;
+                }
                 enemy.x = x;
                 enemy.y = y;
                 enemy.type = type;
                 enemy.shootTimer = Math.random() * 100;
+                enemy.speed = 2 + level * 0.4;
+                enemy.dx = 1;
                 return enemy;
             }
             return {
@@ -246,9 +279,9 @@
             };
         };
 
-        let bullets = [];
+        let bulletCount = 0;
+        let enemyBulletCount = 0;
         let enemies = [];
-        let enemyBullets = [];
 
         // Collision detection (optimized)
         function checkCollision(rect1, rect2) {
@@ -272,7 +305,9 @@
         });
 
         function shoot() {
-            bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y));
+            bulletPool[bulletCount] = createBullet(player.x + player.width / 2 - 2.5, player.y);
+            bulletCount++;
+            if (bulletCount >= bulletPool.length) bulletCount = bulletPool.length - 1;
         }
 
         // Spawn enemies
@@ -300,27 +335,37 @@
             if (keys['ArrowRight']) player.dx = player.speed;
             player.update();
 
-            // Update bullets
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].y -= bullets[i].speed;
+            // Update bullets (fixed array iteration)
+            for (let i = 0; i < bulletCount; i++) {
+                const bullet = bulletPool[i];
+                bullet.y -= bullet.speed;
                 
-                if (bullets[i].y < 0) {
-                    bulletPool.push(bullets[i]);
-                    bullets.splice(i, 1);
+                if (bullet.y < 0) {
+                    // Move to back and decrement
+                    bulletPool[i] = bulletPool[bulletCount - 1];
+                    bulletPool[bulletCount - 1] = bullet;
+                    bulletCount--;
+                    i--;
                     continue;
                 }
 
                 // Check collision with enemies
+                let hit = false;
                 for (let j = enemies.length - 1; j >= 0; j--) {
-                    if (checkCollision(bullets[i], enemies[j])) {
+                    if (checkCollision(bullet, enemies[j])) {
                         score += 100;
-                        bulletPool.push(bullets[i]);
-                        bullets.splice(i, 1);
-                        enemyPool.push(enemies[j]);
-                        enemies.splice(j, 1);
+                        // Move to back and decrement
+                        bulletPool[i] = bulletPool[bulletCount - 1];
+                        bulletPool[bulletCount - 1] = bullet;
+                        bulletCount--;
+                        
+                        enemies[j] = enemies[enemies.length - 1];
+                        enemies.pop();
+                        hit = true;
                         break;
                     }
                 }
+                if (hit) i--;
             }
 
             // Update enemies
@@ -337,29 +382,38 @@
                 
                 // Enemy shoots (reduced frequency)
                 if (enemy.shootTimer > 80 + Math.random() * 50) {
-                    enemyBullets.push(createEnemyBullet(
+                    enemyBulletPool[enemyBulletCount] = createEnemyBullet(
                         enemy.x + enemy.width / 2,
                         enemy.y + enemy.height
-                    ));
+                    );
+                    enemyBulletCount++;
+                    if (enemyBulletCount >= enemyBulletPool.length) enemyBulletCount = enemyBulletPool.length - 1;
                     enemy.shootTimer = 0;
                 }
             }
 
-            // Update enemy bullets
-            for (let i = enemyBullets.length - 1; i >= 0; i--) {
-                enemyBullets[i].y += enemyBullets[i].speed;
+            // Update enemy bullets (fixed array iteration)
+            for (let i = 0; i < enemyBulletCount; i++) {
+                const bullet = enemyBulletPool[i];
+                bullet.y += bullet.speed;
                 
-                if (enemyBullets[i].y > canvas.height) {
-                    enemyBulletPool.push(enemyBullets[i]);
-                    enemyBullets.splice(i, 1);
+                if (bullet.y > canvas.height) {
+                    // Move to back and decrement
+                    enemyBulletPool[i] = enemyBulletPool[enemyBulletCount - 1];
+                    enemyBulletPool[enemyBulletCount - 1] = bullet;
+                    enemyBulletCount--;
+                    i--;
                     continue;
                 }
 
                 // Check collision with player
-                if (checkCollision(enemyBullets[i], player)) {
+                if (checkCollision(bullet, player)) {
                     lives--;
-                    enemyBulletPool.push(enemyBullets[i]);
-                    enemyBullets.splice(i, 1);
+                    // Move to back and decrement
+                    enemyBulletPool[i] = enemyBulletPool[enemyBulletCount - 1];
+                    enemyBulletPool[enemyBulletCount - 1] = bullet;
+                    enemyBulletCount--;
+                    i--;
                     
                     if (lives <= 0) {
                         gameOver = true;
@@ -375,9 +429,15 @@
                 spawnEnemies();
             }
 
-            // Update UI
-            document.getElementById('score').textContent = `Score: ${score}`;
-            document.getElementById('lives').textContent = `Lives: ${lives}`;
+            // Update UI only when changed
+            if (score !== lastScoreUpdate) {
+                scoreElement.textContent = `Score: ${score}`;
+                lastScoreUpdate = score;
+            }
+            if (lives !== lastLivesUpdate) {
+                livesElement.textContent = `Lives: ${lives}`;
+                lastLivesUpdate = lives;
+            }
         }
 
         // Draw game
@@ -388,10 +448,11 @@
             // Draw player
             player.draw(ctx);
 
-            // Draw bullets
+            // Draw bullets (fixed array)
             ctx.fillStyle = '#ffff00';
-            for (let i = 0; i < bullets.length; i++) {
-                ctx.fillRect(bullets[i].x, bullets[i].y, bullets[i].width, bullets[i].height);
+            for (let i = 0; i < bulletCount; i++) {
+                const b = bulletPool[i];
+                ctx.fillRect(b.x, b.y, b.width, b.height);
             }
 
             // Draw enemies
@@ -408,10 +469,11 @@
                 ctx.fillRect(enemy.x + 23, enemy.y + 8, 4, 4);
             }
 
-            // Draw enemy bullets
+            // Draw enemy bullets (fixed array)
             ctx.fillStyle = '#ff6600';
-            for (let i = 0; i < enemyBullets.length; i++) {
-                ctx.fillRect(enemyBullets[i].x, enemyBullets[i].y, enemyBullets[i].width, enemyBullets[i].height);
+            for (let i = 0; i < enemyBulletCount; i++) {
+                const b = enemyBulletPool[i];
+                ctx.fillRect(b.x, b.y, b.width, b.height);
             }
 
             // Draw level (batch update)
